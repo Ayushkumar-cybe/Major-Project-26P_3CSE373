@@ -1,0 +1,148 @@
+# ============================================================
+# config/config.yaml
+# Central configuration for Edge ViT Paddy Disease Detector
+# ============================================================
+
+# ── Project Identity ────────────────────────────────────────
+project:
+  name: "Edge Vision Transformer — Paddy Disease Detection"
+  version: "1.0.0"
+  phase: "phase_a"             # Change to "phase_b" when Phase B begins
+
+# ── Phase A Class Labels ────────────────────────────────────
+# Phase A — 3 classes (extend this list for Phase B)
+# To add Phase B diseases: append to classes list and update num_classes.
+# No architecture code changes needed — classification head reads this dynamically.
+classes:
+  - "Leaf Blast"               # Priority Disease 1  → index 0
+  - "Brown Spot"               # Priority Disease 2  → index 1
+  - "Healthy"                  # Baseline            → index 2
+
+num_classes: 3                 # Must equal len(classes)
+
+# Phase B (future — do NOT enable until Phase A F1 ≥ 0.90 for all disease classes)
+# classes:
+#   - "Leaf Blast"
+#   - "Brown Spot"
+#   - "Healthy"
+#   - "Sheath Blight"
+#   - "Bacterial Blight"
+#   - "Tungro"
+# num_classes: 6
+
+# ── Paths ───────────────────────────────────────────────────
+paths:
+  data_root: "data/"
+  raw_dir: "data/raw/"
+  processed_dir: "data/processed/"
+  train_dir: "data/train/"
+  val_dir: "data/val/"
+  augmented_dir: "data/augmented/"
+  models_dir: "models/"
+  checkpoints_dir: "checkpoints/"
+  outputs_dir: "outputs/"
+  plots_dir: "outputs/plots/"
+  logs_dir: "outputs/logs/"
+
+# ── Model Architecture ──────────────────────────────────────
+model:
+  backbone: "resnet18"         # CNN backbone
+  pretrained: true             # Use ImageNet pretrained weights
+  feature_dim: 512             # ResNet-18 output channels (7×7×512)
+  patch_size: 1                # Patch = 1×1 over 7×7 feature map → 49 patches
+  num_patches: 49              # 7×7 = 49
+  embed_dim: 256               # Linear projection dimension D
+  num_heads: 8                 # Multi-head attention heads
+  num_transformer_layers: 4    # Number of Transformer encoder blocks
+  mlp_ratio: 4                 # MLP hidden dim = embed_dim × mlp_ratio
+  dropout: 0.1                 # Dropout rate in Transformer
+  cls_token: true              # Use CLS token (true) or mean pooling (false)
+  # Classification Head
+  head_hidden_dim: 128         # Linear → ReLU → Dropout → Linear
+  head_dropout: 0.3
+
+# ── Training Hyperparameters ────────────────────────────────
+training:
+  epochs: 50
+  batch_size: 32
+  num_workers: 4               # DataLoader workers (set to 0 on Windows if issues)
+  learning_rate: 3.0e-4
+  weight_decay: 1.0e-4
+  optimizer: "adamw"           # "adam" or "adamw"
+  scheduler: "cosine"          # "cosine" or "step"
+  warmup_epochs: 5
+  early_stopping_patience: 10
+  grad_clip: 1.0               # Gradient clipping max norm
+  seed: 42
+
+# ── Data ────────────────────────────────────────────────────
+data:
+  image_size: 224              # Input resolution (224×224)
+  train_split: 0.8             # 80% train, 20% val
+  val_split: 0.2
+  mean: [0.485, 0.456, 0.406] # ImageNet normalization mean
+  std: [0.229, 0.224, 0.225]  # ImageNet normalization std
+  # Augmentation (applied only to training set)
+  augmentation:
+    random_horizontal_flip: true
+    random_vertical_flip: false
+    random_rotation: 15        # degrees
+    color_jitter:
+      brightness: 0.2
+      contrast: 0.2
+      saturation: 0.2
+      hue: 0.05
+    gaussian_blur: true
+    blur_kernel_size: 3
+    clahe: false               # CLAHE contrast enhancement (optional)
+
+# ── Phase A Accuracy Thresholds (gate for Phase B) ──────────
+phase_a_thresholds:
+  leaf_blast_f1: 0.90
+  brown_spot_f1: 0.90
+  overall_accuracy: 0.92
+  # When all three are met, is_ready_for_phase_b() returns True
+
+# ── Checkpoint ──────────────────────────────────────────────
+checkpoint:
+  best_model_path: "checkpoints/phase_a_best.pth"
+  save_every_n_epochs: 5      # Save periodic checkpoints
+  # Checkpoint metadata stored alongside weights:
+  #   - num_classes
+  #   - class_labels
+  #   - epoch
+  #   - val_accuracy
+  #   - phase
+
+# ── ONNX Export ─────────────────────────────────────────────
+onnx:
+  model_path: "models/hybrid_model.onnx"
+  int8_model_path: "models/hybrid_model_int8.onnx"
+  opset_version: 17
+  dynamic_axes: true           # Enable variable batch size
+
+# ── Database ────────────────────────────────────────────────
+database:
+  # Override with environment variable: DATABASE_URL
+  host: "localhost"
+  port: 5432
+  name: "paddy_disease_db"
+  user: "paddy_user"
+  password: "paddy_pass"       # Use .env in production
+  # Full URL (used if set):
+  # url: "postgresql://paddy_user:paddy_pass@localhost:5432/paddy_disease_db"
+
+# ── Streamlit App ───────────────────────────────────────────
+app:
+  title: "🌾 Paddy Disease Detector"
+  model_version: "phase_a_v1"
+  upload_dir: "outputs/uploads/"
+  max_image_size_mb: 10
+  confidence_threshold: 0.50  # Minimum confidence to display result
+
+# ── Logging ─────────────────────────────────────────────────
+logging:
+  level: "INFO"                # DEBUG | INFO | WARNING | ERROR
+  log_to_file: true
+  log_file: "outputs/logs/run.log"
+
